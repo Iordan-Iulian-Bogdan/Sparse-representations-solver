@@ -1,3 +1,5 @@
+// OpenCL kernels which will run on the GPU
+
 void kernel mat_mat_mul_gpu(const int m, const int k, const global float* A, const global float* B, global float* C) 
 {
     const int rows = get_global_id(0); 
