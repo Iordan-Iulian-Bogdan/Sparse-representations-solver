@@ -5,7 +5,7 @@
 
 Features :
 
-  - solves the equation A*x=b where A is an m by n matrix with m>n and x is a vector which is sparse (has a lot of elements equal to zero)
+  - solves the equation A*x=b where A is an m by n matrix with m<n and x is a vector which is sparse (has a lot of elements equal to zero)
   - three algorithms implemented : -  Alternating Direction Algorithm (ADM)
                                    -  Fast Iterative Shrinkage-Thresholding Algorithm (FISTA) 
                                    -  Primal Augmented Lagrangian Method (PALM)                             
