@@ -22,4 +22,4 @@ Features :
       - all three algorithms need the largest singular value of A*A' in order to guarantee convergence, the solvers provided can compute these, however this can be very expensive, especially for the CPU versions so if possible one should provide this value manually
       - if the data can fit into the cache of the CPU this generally means the CPU solvers will be slightly faster however if this is not the case the GPU version should be faster (for reference a GTX 1080 is about 3-4x times faster than an 8 core 1700X CPU)
       - the CPU version of the solvers will use all available threads by default, however the scaling may be much worse in reality, on the aforementioned 1700X going past 4 threads yields little improvement in terms of speed
-      - these computations are mostly memory bound therefore sclaing of performance with better hardware may not be as expected 
+      - the computations involved are mostly memory bound (i.e. matrix-vector multiplication) therefore sclaing of performance with better hardware may not be as good expected 
