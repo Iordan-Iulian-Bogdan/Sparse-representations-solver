@@ -6,9 +6,7 @@
 Features :
 
   - solves the equation A*x=b where A is an m by n matrix with m<n and x is a vector which is sparse (has a lot of elements equal to zero)
-  - three algorithms implemented : -  Alternating Direction Algorithm (ADM)
-                                   -  Fast Iterative Shrinkage-Thresholding Algorithm (FISTA) 
-                                   -  Primal Augmented Lagrangian Method (PALM)                             
+  - three algorithms implemented :  Alternating Direction Algorithm (ADM), Fast Iterative Shrinkage-Thresholding Algorithm (FISTA),  Primal Augmented Lagrangian Method (PALM)                             
   - uses AVX SIMD extensions and is multi-threaded 
   - the majority of relevant computations are also GPU accelareted using OpenCL 
   - effective for very large systems i.e. the dimensions of dictionary A are of order 10000 x 10000 and over
