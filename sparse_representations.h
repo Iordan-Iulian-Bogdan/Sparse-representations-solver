@@ -315,12 +315,12 @@ public:
 		vector<float>y(m);
 		vector<float>r(m);
 		mat_scalar_avx(A_t, tau, this->T);
-
+		
 		//	Implemeting the following ADM algorithm :
 		//	Input: ?, ?, ? dictionary A, measurement b, x = 0, y = 0
 		//	While not converge
-		//	x(k)?shrink(x(k) - ?A * (Ax(k) - b - y(k) / ?), ? / ?)
-		//	y(k + 1)?y(k) - ??(Ax(k + 1) - b)
+		//	x(k)←shrink(x(k)-τA*(Ax(k)-b-y(k)/β),τ/β)
+		//	y(k+1)←y(k)-γβ(Ax(k+1)-b)
 		//	end while
 		//	Output: x(k)
 
@@ -550,11 +550,11 @@ public:
 
 		//	Implementing the following FISTA algorithm
 		//
-		//	Input: : Lipschitz constant L, ?, ? = 1, dictionary A, measurement b, x = 0
+		//	Input: : Lipschitz constant L, λ, μ=1, dictionary A, measurement b, x = 0
 		//	While not converge
-		//	x(k)?shrink(x(k) - 1 / L A'(Ax(k)-b),?)
-		//	?(k + 1)?(1 + ?(1 + 4(?(k) ^ 2)) / 2
-		//	x(k)?x(k) + (?(k) - 1) / ?(k + 1) * (x(k) - x(k - 1))
+		//	x(k)←shrink(x(k) - 1 / L A'(Ax(k)-b),λ)
+		//	μ(k+1)←(1+√(1+4μ(k)^2 ))/2
+		//	x(k)←x(k)+(μ(k)-1)/μ(k+1)*(x(k)-x(k-1))
 		//	end while
 		//	Output: x(k)
 
@@ -773,17 +773,17 @@ public:
 		vector<float> theta(m);
 		mat_scalar_avx(A_t, 1 / L, this->T);
 
-		//	Input: Lipschitz constant L, ?, dictionary A, measurement b, x = 0
+		//	Input: Lipschitz constant L, ξ, dictionary A, measurement b, x = 0
 		//
-		//	While not converge(i = 1, 2 �) execute
-		//	e(k + 1)?shrink(b - Ax(k) + 1 / ? ?(k), 1 / ?)
-		//	t(1)?1, z(1)?x(k), w(1)?x(k)
-		//		While not converge(j = 1, 2 �) execute
-		//		w(j + 1)?shrink(z(j) + 1 / L A'*(b-A*z(l)-e(k+1)+1/? ?(k)),1/?L)
-		//		t(j + 1)?1 / 2 1 + ?(1 + 4t(j) ^ 2)
-		//		z(j + 1)?w(j + 1) + (t(j) - 1) / (t(j) + 1)(w(j + 1) - w(j))
-		//		Sf - c�t timp
-		//	x(k + 1)?w(l), ?(k + 1)??(k) + ?(b - Ax(k + 1) - e(k + 1))
+		//	While not converge(i = 1, 2 …) execute
+		//	e(k+1)←shrink(b-Ax(k)+1/ξθ(k),1/ξ)
+		//	t(1)←1, z(1)←x(k), w(1)←x(k)
+		//		While not converge(j = 1, 2 …) execute
+		//		w(j+1)←shrink( z(j)+1/L A'(b-Az(l)-e(k+1)+1/ξθ(k)),1/ξL)
+		//		t(j+1)←1/2 1+√(1+4t(j)^2 )
+		//		z(j+1)←w(j+1)+(t(j)-1)/(t(j)+1)(w(j+1)-w(j))
+		//		Sf - cât timp
+		//	x(k+1)←w(l),θ(k+1)←θ(k)+ξ(b-Ax(k+1)-e(k+1))
 		//	end while
 		//	Output: x(k)
 
