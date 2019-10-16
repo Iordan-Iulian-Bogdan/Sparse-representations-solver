@@ -317,7 +317,7 @@ public:
 		mat_scalar_avx(A_t, tau, this->T);
 		
 		//	Implemeting the following ADM algorithm :
-		//	Input: ?, ?, ? dictionary A, measurement b, x = 0, y = 0
+		//	Input: τ, β, γ dictionary A, measurement b, x = 0, y = 0
 		//	While not converge
 		//	x(k)←shrink(x(k)-τA*(Ax(k)-b-y(k)/β),τ/β)
 		//	y(k+1)←y(k)-γβ(Ax(k+1)-b)
