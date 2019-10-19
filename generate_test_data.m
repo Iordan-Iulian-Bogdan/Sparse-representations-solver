@@ -1,3 +1,5 @@
+% This is a script for generating test data for the solver.
+
 n=3840;
 m=2160;
 
