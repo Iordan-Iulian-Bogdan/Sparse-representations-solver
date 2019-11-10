@@ -182,6 +182,9 @@ protected:
 		//	compiling the kernel
 
 		cl::Kernel kernel_mat_mat_mul_gpu;
+		
+		// checking if the format is double or float and we compile the appropriate kernel 
+		
 		if (sizeof(T_type) == 8)
 			kernel_mat_mat_mul_gpu = cl::Kernel(program, "mat_mat_mul_gpu_dp");
 		else
