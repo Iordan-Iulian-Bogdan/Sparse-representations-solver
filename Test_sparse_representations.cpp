@@ -1,4 +1,4 @@
-﻿#include <iostream>
+#include <iostream>
 #include <vector>
 #include "sparse_representations.h"
 
@@ -12,12 +12,12 @@ int main()
 	vector<float>x2;
 	vector<float>x3;
 
-	adm* data1;
-	data1 = new adm(A_name, b_name, 0.001f, 0.0001f, 1000);
-	fista* data2;
-	data2 = new fista(A_name, b_name, 0.3e-2, 1000);
-	palm* data3;
-	data3 = new palm(A_name, b_name, 1000, 3);
+	adm<float>* data1;
+	data1 = new adm<float>(A_name, b_name, 0.001f, 0.0001f, 1000);
+	fista<float>* data2;
+	data2 = new fista<float>(A_name, b_name, 0.3e-2, 1000);
+	palm<float>* data3;
+	data3 = new palm<float>(A_name, b_name, 1000, 3);
 
 	//	compute the solutions with the CPU solvers  
 	x1 = data1->solution_cpu();
@@ -35,12 +35,12 @@ int main()
 	cout << "PALM execution time (cpu): " << data3->solve_time / 1000 << " seconds" << '\n';
 	cout << '\n';
 
-	adm* data4;
-	data4 = new adm(A_name, b_name, 0.001f, 0.0001f, 1000);
-	fista* data5;
-	data5 = new fista(A_name, b_name, 0.3e-2, 1000);
-	palm* data6;
-	data6 = new palm(A_name, b_name, 1000, 3);
+	adm<float>* data4;
+	data4 = new adm<float>(A_name, b_name, 0.001f, 0.0001f, 1000);
+	fista<float>* data5;
+	data5 = new fista<float>(A_name, b_name, 0.3e-2, 1000);
+	palm<float>* data6;
+	data6 = new palm<float>(A_name, b_name, 1000, 3);
 
 	//	compute the solutions for the same systems with the GPU solvers  
 	x1 = data4->solution_gpu();
@@ -56,6 +56,8 @@ int main()
 	cout << "FISTA execution time (gpu): " << data5->solve_time / 1000 << " seconds " << data2->solve_time / data5->solve_time << "x speedup" << '\n';
 	cout << "PALM execution time (gpu): " << data6->solve_time / 1000 << " seconds " << data3->solve_time / data6->solve_time << "x speedup" << '\n';
 	cout << '\n';
+
+	vec_print(x3);
 
 	delete data1;
 	delete data2;
