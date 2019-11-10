@@ -10,6 +10,7 @@ Features :
   - uses AVX SIMD extensions and is multi-threaded 
   - the majority of relevant computations are also GPU accelareted using OpenCL 
   - effective for very large systems i.e. the dimensions of dictionary A are of order 10000 x 10000 and over
+  - supports 32bit and 64bit floating point formats (64bit GPU acceleration may be worse due to the fact that a lot of GPU have lower double precision throughput)
   
   Notes :
   
