@@ -80,6 +80,8 @@ void kernel vec_add_gpu_sp(global float* vec1, global const float* vec2)
 	vec1[id] = vec1[id] + vec2[id];
 }
 
+// double precision versions of the same kernels
+
 void kernel mat_mat_mul_gpu_dp(const int m, const int k, const global double* A, const global double* B, global double* C) 
 {
     const int rows = get_global_id(0); 
