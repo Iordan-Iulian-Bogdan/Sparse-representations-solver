@@ -207,7 +207,7 @@ protected:
 		const int TS = 32;
 
 		//launching the kernel in execution
-		queue.enqueueNDRangeKernel(kernel_mat_mat_mul_gpu, cl::NullRange, cl::NDRange(m, m), cl::NDRange(32, 32));
+		queue.enqueueNDRangeKernel(kernel_mat_mat_mul_gpu, cl::NullRange, cl::NDRange(m, m), cl::NDRange(TS, TS));
 
 		//	reading back the result
 		queue.enqueueReadBuffer(buffer_X, CL_TRUE, 0, sizeof(T_type) * flat_X.size(), flat_X.data());
