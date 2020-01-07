@@ -68,6 +68,7 @@ public:
 			m = m + (32 - m % 32);
 		}
 
+
 		//	resizing to the new correct sizes
 		this->A.resize(m, vector<T_type>(n));
 		this->A_t.resize(n, vector<T_type>(m));
@@ -77,10 +78,8 @@ public:
 		//	filling A and b with zeros before reading into them the actual data
 		//	the extra lines and collums will not affect the computation since they are now filled with zeros
 
-		fill(b.begin(), b.end(), 0.0f);
-
-		for (unsigned int i = 0; i < A.size(); ++i)
-			fill(A[i].begin(), A[i].end(), 0.0f);
+		vec_fill(b, 0.0f);
+		mat_fill(A, 0.0f, T);
 
 		//	reading the data from disk
 		for (unsigned int i = 0; i < A.size(); ++i)
@@ -91,6 +90,87 @@ public:
 		fin2.close();
 
 		mat_transpose(A, A_t, T);
+	}
+
+	sparse(vector<vector<T_type>> &A, vector<T_type> &b)
+	{
+		old_n = A[0].size();
+		n = A[0].size();
+
+		if (A[0].size() % 32 != 0)
+		{
+			n = n + (32 - n % 32);
+		}
+
+		old_m = A.size();
+		m = A.size();
+
+		if (A.size() % 32 != 0)
+		{
+			m = m + (32 - m % 32);
+		}
+
+		if (n == m)
+			n = n + 32;
+
+		this->A.resize(m, vector<T_type>(n));
+		this->A_t.resize(n, vector<T_type>(m));
+		this->b.resize(m);
+		this->x.resize(n);
+
+		vec_fill(this->b, 0.0f);
+		mat_fill(this->A, 0.0f, T);
+
+		std::copy(b.begin(), b.end(), this->b.begin());
+
+		copy(this->A, A, T);
+
+		mat_transpose(A, A_t, T);
+	}
+
+	sparse(T_type** A, T_type* b, int n, int m)
+	{
+		old_n = n;
+		this->n = n;
+
+		if (n % 32 != 0)
+		{
+			this->n = this->n + (32 - this->n % 32);
+		}
+
+		old_m = m;
+		this->m = m;
+
+		cout << old_n << ' ' << old_m;
+
+		if (m % 32 != 0)
+		{
+			this->m = this->m + (32 - this->m % 32);
+		}
+
+		if (this->n == this->m)
+			this->n = this->n + 32;
+
+		this->A.resize(this->m, vector<T_type>(this->n));
+		this->A_t.resize(this->n, vector<T_type>(this->m));
+		this->b.resize(this->m);
+		this->x.resize(this->n);
+
+		vec_fill(this->b, 0.0f);
+		mat_fill(this->A, 0.0f, T);
+
+		for (int j = 0; j < m; j++)
+			this->b[j] = b[j];
+
+		for (int i = 0; i < old_m; i++)
+			for (int j = 0; j < old_n; j++)
+			{
+				this->A[i][j] = A[i][j];
+			}
+
+		cout << this->A.size() << ' ' << this->A[0].size() << ' ' << this->b.size();
+
+		mat_transpose(this->A, A_t, T);
 	}
 
 	sparse()
@@ -148,43 +228,30 @@ protected:
 		cl::Program program(context, sources);
 		program.build({ default_device });
 
-		vector<T_type> flat_A;
-		vector<T_type> flat_A_t;
+		vector<T_type> flat_A(A_t.size() * A_t[0].size());
+		vector<T_type> flat_A_t(A.size() * A[0].size());
 		vector<vector<T_type>> X(m, vector<T_type>(m));
-		vector<T_type> flat_X;
+		vector<T_type> flat_X(X.size() * X[0].size());
 
 		//	"flattening" the arrays for the OpenCL kernels since they take unidimensional data as input
-		for (unsigned int i = 0; i < A_t.size(); ++i)
-			for (unsigned int j = 0; j < A_t[0].size(); ++j)
-			{
-				flat_A.push_back(A_t[i][j]);
-			}
 
-		for (unsigned int i = 0; i < A.size(); ++i)
-			for (unsigned int j = 0; j < A[0].size(); ++j)
-			{
-				flat_A_t.push_back(A[i][j]);
-			}
-
-		for (unsigned int i = 0; i < X.size(); ++i)
-			for (unsigned int j = 0; j < X[0].size(); ++j)
-			{
-				flat_X.push_back(X[i][j]);
-			}
+		flatten(A_t, flat_A, this->T);
+		flatten(A, flat_A_t, T);
+		flatten(X, flat_X, T);
 
 		//	defining the buffer which will exist on the GPU memory
 		cl::Buffer buffer_A(context, CL_MEM_READ_ONLY, sizeof(T_type) * flat_A.size());
 		cl::Buffer buffer_A_t(context, CL_MEM_READ_ONLY, sizeof(T_type) * flat_A_t.size());
-		cl::Buffer buffer_X(context, CL_MEM_READ_WRITE, sizeof(T_type) * flat_X.size());
+		cl::Buffer buffer_X(context, CL_MEM_WRITE_ONLY, sizeof(T_type) * flat_X.size());
 
 		cl::CommandQueue queue(context, default_device);
 
 		//	compiling the kernel
 
 		cl::Kernel kernel_mat_mat_mul_gpu;
-		
+
 		// checking if the format is double or float and we compile the appropriate kernel 
-		
+
 		if (sizeof(T_type) == 8)
 			kernel_mat_mat_mul_gpu = cl::Kernel(program, "mat_mat_mul_gpu_dp");
 		else
@@ -205,9 +272,10 @@ protected:
 		//	we'll use multiples of 32 for the sizes of the workgroups 
 		//	this matches the characteristics of a lot of the hardware avaialble
 		const int TS = 32;
+		const int WPT = 8;
 
 		//launching the kernel in execution
-		queue.enqueueNDRangeKernel(kernel_mat_mat_mul_gpu, cl::NullRange, cl::NDRange(m, m), cl::NDRange(TS, TS));
+		queue.enqueueNDRangeKernel(kernel_mat_mat_mul_gpu, cl::NullRange, cl::NDRange(m, m/WPT), cl::NDRange(TS, TS/WPT));
 
 		//	reading back the result
 		queue.enqueueReadBuffer(buffer_X, CL_TRUE, 0, sizeof(T_type) * flat_X.size(), flat_X.data());
@@ -216,11 +284,8 @@ protected:
 		uint64_t k = 0;
 
 		//	"unflattening" the data back
-		for (unsigned int i = 0; i < X.size(); ++i)
-			for (unsigned int j = 0; j < X[0].size(); ++j)
-			{
-				X[i][j] = flat_X[k++];
-			}
+
+		unflatten(X, flat_X, T);
 
 		vector<T_type> b_k(m);
 		vector<T_type> aux(m);
@@ -233,17 +298,17 @@ protected:
 		//	bulk of the algorithm
 		for (unsigned int i = 0; i < 10; i++)
 		{
-			mat_vec_mul_avx(X, b_k, this->T);
+			mat_vec_mul_avx(X, b_k, T);
 			b_k1 = b_k;
 			norm_b_k1 = norm(b_k1);
 			aux = b_k1;
-			vec_scalar_avx(b_k1, (1 / norm_b_k1), this->T);
+			vec_scalar_avx(b_k1, (1 / norm_b_k1), T);
 			b_k = b_k1;
 			b_k1 = aux;
 		}
 
 		aux = b_k;
-		mat_vec_mul_avx(X, b_k, this->T);
+		mat_vec_mul_avx(X, b_k, T);
 		b_k = vec_mul_avx(b_k, aux);
 		eig = reduction_avx(b_k);
 		aux = vec_mul_avx(aux, aux);
@@ -306,6 +371,20 @@ public:
 	adm(string A_name, string b_name, T_type beta, T_type tau, int iterations) :sparse<T_type>(A_name, b_name)
 	{
 		//	tau and beta should tipically be small i.e 0.001
+		this->iterations = iterations;
+		this->beta = beta;
+		this->tau = tau;
+	}
+
+	adm(vector<vector<T_type>>& A, vector<T_type>& b, T_type beta, T_type tau, int iterations) :sparse<T_type>(A, b)
+	{
+		this->iterations = iterations;
+		this->beta = beta;
+		this->tau = tau;
+	}
+
+	adm(T_type** A, T_type* b, int n, int m, T_type beta, T_type tau, int iterations) :sparse<T_type>(A, b, n, m)
+	{
 		this->iterations = iterations;
 		this->beta = beta;
 		this->tau = tau;
@@ -394,23 +473,14 @@ public:
 		cl::Program program(context, sources);
 		program.build({ default_device });
 
-		vector<T_type> flat_A;
-		vector<T_type> flat_A_t;
+		vector<T_type> flat_A(this->A_t.size() * this->A_t[0].size());
+		vector<T_type> flat_A_t(this->A.size() * this->A[0].size());
 		vector<T_type>y(this->m);
 		int t = 32;
 		int m1 = 32;
 
-		for (unsigned int i = 0; i < this->A_t.size(); ++i)
-			for (unsigned int j = 0; j < this->A_t[0].size(); ++j)
-			{
-				flat_A.push_back(this->A_t[i][j]);
-			}
-
-		for (unsigned int i = 0; i < this->A.size(); ++i)
-			for (unsigned int j = 0; j < this->A[0].size(); ++j)
-			{
-				flat_A_t.push_back(this->A[i][j]);
-			}
+		flatten(this->A_t, flat_A, this->T);
+		flatten(this->A, flat_A_t, this->T);
 
 		vec_scalar_avx(flat_A_t, tau, this->T);
 
@@ -565,6 +635,18 @@ public:
 		this->lambda = lambda;
 	}
 
+	fista(vector<vector<T_type>>& A, vector<T_type>& b, T_type lambda, int iterations) :sparse<T_type>(A, b)
+	{
+		this->iterations = iterations;
+		this->lambda = lambda;
+	}
+
+	fista(T_type** A, T_type* b, int n, int m, T_type lambda, int iterations) :sparse<T_type>(A, b, n, m)
+	{
+		this->iterations = iterations;
+		this->lambda = lambda;
+	}
+
 	void solve_cpu()
 	{
 		high_resolution_clock::time_point t1 = high_resolution_clock::now();
@@ -644,22 +726,13 @@ public:
 		cl::Program program(context, sources);
 		program.build({ default_device });
 
-		vector<T_type> flat_A;
-		vector<T_type> flat_A_t;
+		vector<T_type> flat_A(this->A_t.size() * this->A_t[0].size());
+		vector<T_type> flat_A_t(this->A.size() * this->A[0].size());
 		int t = 32;
 		int m1 = 32;
 
-		for (unsigned int i = 0; i < this->A_t.size(); ++i)
-			for (unsigned int j = 0; j < this->A_t[0].size(); ++j)
-			{
-				flat_A.push_back(this->A_t[i][j]);
-			}
-
-		for (unsigned int i = 0; i < this->A.size(); ++i)
-			for (unsigned int j = 0; j < this->A[0].size(); ++j)
-			{
-				flat_A_t.push_back(this->A[i][j]);
-			}
+		flatten(this->A_t, flat_A, this->T);
+		flatten(this->A, flat_A_t, this->T);
 
 		vec_scalar_avx(flat_A_t, L, this->T);
 
@@ -803,6 +876,22 @@ public:
 		this->iterations_inner_loop = iterations_inner_loop;
 	}
 
+	palm(vector<vector<T_type>>& A, vector<T_type>& b, int iterations_outter_loop, int iterations_inner_loop) :sparse<T_type>(A, b)
+	{
+		//	the inner loop tipically needs to be a lot smaller than the outter loop 
+		//	i.e 100 for the outter one and 3 for the inner one
+		this->iterations_outter_loop = iterations_outter_loop;
+		this->iterations_inner_loop = iterations_inner_loop;
+	}
+
+	palm(T_type** A, T_type* b, int n, int m, int iterations_outter_loop, int iterations_inner_loop) :sparse<T_type>(A, b, n, m)
+	{
+		//	the inner loop tipically needs to be a lot smaller than the outter loop 
+		//	i.e 100 for the outter one and 3 for the inner one
+		this->iterations_outter_loop = iterations_outter_loop;
+		this->iterations_inner_loop = iterations_inner_loop;
+	}
+
 	void solve_cpu()
 	{
 		high_resolution_clock::time_point t1 = high_resolution_clock::now();
@@ -930,22 +1019,13 @@ public:
 		vector<T_type> w1(this->n);
 		vector<T_type> z(this->n);
 		vector<T_type> theta(this->m);
-		vector<T_type> flat_A;
-		vector<T_type> flat_A_t;
+		vector<T_type> flat_A(this->A_t.size() * this->A_t[0].size());
+		vector<T_type> flat_A_t(this->A.size() * this->A[0].size());
 		int t = 32;
 		int m1 = 32;
 
-		for (unsigned int i = 0; i < this->A_t.size(); ++i)
-			for (unsigned int j = 0; j < this->A_t[0].size(); ++j)
-			{
-				flat_A.push_back(this->A_t[i][j]);
-			}
-
-		for (unsigned int i = 0; i < this->A.size(); ++i)
-			for (unsigned int j = 0; j < this->A[0].size(); ++j)
-			{
-				flat_A_t.push_back(this->A[i][j]);
-			}
+		flatten(this->A_t, flat_A, this->T);
+		flatten(this->A, flat_A_t, this->T);
 
 		vec_scalar_avx(flat_A_t, 1 / L, this->T);
 
