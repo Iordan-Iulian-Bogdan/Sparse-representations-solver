@@ -1,15 +1,29 @@
-void kernel mat_mat_mul_gpu_sp(const int m, const int k, const global float* A, const global float* B, global float* C) 
+#define TS 32    
+#define WPT 8   
+#define RTS (TS/WPT)
+
+void kernel norm_dp(global double* x, global double* norm, int n)
 {
-    const int rows = get_global_id(0); 
-    const int cols = get_global_id(1); 
- 
-    //	computing one dot product per thread
-    float acc = 0.0f;
-    for (int i=0; i<k; i++) {
-        acc += A[i*m + rows] * B[cols*k + i];
+    int i = 0;
+
+    for (i = 0; i < n; i++)
+    {
+        norm[0] += x[i] * x[i];
     }
- 
-    C[cols*m + rows] = acc;   
+
+    norm[0] = sqrt(norm[0]);
+}
+
+void kernel norm_sp(global float* x, global float* norm, int n)
+{
+    int i = 0;
+
+    for (i = 0; i < n; i++)
+    {
+        norm[0] += x[i] * x[i];
+    }
+
+    norm[0] = sqrt(norm[0]);
 }
 
 void kernel vec_scalar_gpu_sp(global float * x, float a)
@@ -20,7 +34,7 @@ void kernel vec_scalar_gpu_sp(global float * x, float a)
 void kernel shrink_gpu_sp(global float * x, float threshold)
 {
 
-	int id = get_global_id(0);
+    const int id = get_global_id(0);
     
     local float aux;
     aux = sign(x[id]) * x[id] - threshold;
@@ -44,10 +58,10 @@ void kernel mat_vec_mul_gpu_sp(global const float * mat, global const float * ve
     }
 
 
-  int rows = get_local_size(0);
+  const int rows = get_local_size(0);
   int cols = get_local_size(1); 
-  int i = get_local_id(0);
-  int j = get_local_id(1);  
+  const int i = get_local_id(0);
+  const int j = get_local_id(1);
   aux[i+rows*j] = sum;
   
   //	synchronizing all threads within the same workgroup
@@ -70,30 +84,14 @@ void kernel mat_vec_mul_gpu_sp(global const float * mat, global const float * ve
 
 void kernel vec_sub_gpu_sp(global float* vec1, global const float* vec2)
 {
-	int id = get_global_id(0);                                               
+    const int id = get_global_id(0);
 	vec1[id] = vec1[id] - vec2[id];
 }
 
 void kernel vec_add_gpu_sp(global float* vec1, global const float* vec2)
 {
-	int id = get_global_id(0);                                               
+    const int id = get_global_id(0);
 	vec1[id] = vec1[id] + vec2[id];
-}
-
-// double precision versions of the same kernels
-
-void kernel mat_mat_mul_gpu_dp(const int m, const int k, const global double* A, const global double* B, global double* C) 
-{
-    const int rows = get_global_id(0); 
-    const int cols = get_global_id(1); 
- 
-    //	computing one dot product per thread
-    double acc = 0.0f;
-    for (int i=0; i<k; i++) {
-        acc += A[i*m + rows] * B[cols*k + i];
-    }
- 
-    C[cols*m + rows] = acc;   
 }
 
 void kernel vec_scalar_gpu_dp(global double * x, double a)
@@ -104,7 +102,7 @@ void kernel vec_scalar_gpu_dp(global double * x, double a)
 void kernel shrink_gpu_dp(global double * x, double threshold)
 {
 
-	int id = get_global_id(0);
+    const int id = get_global_id(0);
     
     local double aux;
     aux = sign(x[id]) * x[id] - threshold;
@@ -128,10 +126,10 @@ void kernel mat_vec_mul_gpu_dp(global const double * mat, global const double * 
     }
 
 
-  int rows = get_local_size(0);
+  const int rows = get_local_size(0);
   int cols = get_local_size(1); 
-  int i = get_local_id(0);
-  int j = get_local_id(1);  
+  const int i = get_local_id(0);
+  const int j = get_local_id(1);
   aux[i+rows*j] = sum;
   
   //	synchronizing all threads within the same workgroup
@@ -154,12 +152,120 @@ void kernel mat_vec_mul_gpu_dp(global const double * mat, global const double * 
 
 void kernel vec_sub_gpu_dp(global double* vec1, global const double* vec2)
 {
-	int id = get_global_id(0);                                               
+    const int id = get_global_id(0);
 	vec1[id] = vec1[id] - vec2[id];
 }
 
 void kernel vec_add_gpu_dp(global double* vec1, global const double* vec2)
 {
-	int id = get_global_id(0);                                               
+    const int id = get_global_id(0);
 	vec1[id] = vec1[id] + vec2[id];
+}
+
+// Increased the amount of work-per-thread by a factor WPT
+__kernel void mat_mat_mul_gpu_sp(const int M, const int K,
+    const __global float* A,
+    const __global float* B,
+    __global float* C) {
+
+    // Thread identifiers
+    const int row = get_local_id(0); // Local row ID (max: TS)
+    const int col = get_local_id(1); // Local col ID (max: TS/WPT == RTS)
+    const int globalRow = TS * get_group_id(0) + row; // Row ID of C (0..M)
+    const int globalCol = TS * get_group_id(1) + col; // Col ID of C (0..N)
+
+    // Local memory to fit a tile of TS*TS elements of A and B
+    __local float Asub[TS][TS];
+    __local float Bsub[TS][TS];
+
+    // Initialise the accumulation registers
+    float acc[WPT];
+    for (int w = 0; w < WPT; w++) {
+        acc[w] = 0.0f;
+    }
+
+    // Loop over all tiles
+    const int numTiles = K / TS;
+    for (int t = 0; t < numTiles; t++) {
+
+        // Load one tile of A and B into local memory
+        for (int w = 0; w < WPT; w++) {
+            const int tiledRow = TS * t + row;
+            const int tiledCol = TS * t + col;
+            Asub[col + w * RTS][row] = A[(tiledCol + w * RTS) * M + globalRow];
+            Bsub[col + w * RTS][row] = B[(globalCol + w * RTS) * K + tiledRow];
+        }
+
+        // Synchronise to make sure the tile is loaded
+        barrier(CLK_LOCAL_MEM_FENCE);
+
+        // Perform the computation for a single tile
+        for (int k = 0; k < TS; k++) {
+            for (int w = 0; w < WPT; w++) {
+                acc[w] += Asub[k][row] * Bsub[col + w * RTS][k];
+            }
+        }
+
+        // Synchronise before loading the next tile
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+
+    // Store the final results in C
+    for (int w = 0; w < WPT; w++) {
+        C[(globalCol + w * RTS) * M + globalRow] = acc[w];
+    }
+}
+
+// Increased the amount of work-per-thread by a factor WPT
+__kernel void mat_mat_mul_gpu_dp(const int M, const int K,
+    const __global double* A,
+    const __global double* B,
+    __global double* C) {
+
+    // Thread identifiers
+    const int row = get_local_id(0); // Local row ID (max: TS)
+    const int col = get_local_id(1); // Local col ID (max: TS/WPT == RTS)
+    const int globalRow = TS * get_group_id(0) + row; // Row ID of C (0..M)
+    const int globalCol = TS * get_group_id(1) + col; // Col ID of C (0..N)
+
+    // Local memory to fit a tile of TS*TS elements of A and B
+    __local double Asub[TS][TS];
+    __local double Bsub[TS][TS];
+
+    // Initialise the accumulation registers
+    double acc[WPT];
+    for (int w = 0; w < WPT; w++) {
+        acc[w] = 0.0f;
+    }
+
+    // Loop over all tiles
+    const int numTiles = K / TS;
+    for (int t = 0; t < numTiles; t++) {
+
+        // Load one tile of A and B into local memory
+        for (int w = 0; w < WPT; w++) {
+            const int tiledRow = TS * t + row;
+            const int tiledCol = TS * t + col;
+            Asub[col + w * RTS][row] = A[(tiledCol + w * RTS) * M + globalRow];
+            Bsub[col + w * RTS][row] = B[(globalCol + w * RTS) * K + tiledRow];
+        }
+
+        // Synchronise to make sure the tile is loaded
+        barrier(CLK_LOCAL_MEM_FENCE);
+
+        // Perform the computation for a single tile
+        for (int k = 0; k < TS; k++) {
+            for (int w = 0; w < WPT; w++) {
+                acc[w] += Asub[k][row] * Bsub[col + w * RTS][k];
+            }
+        }
+
+        // Synchronise before loading the next tile
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+
+    // Store the final results in C
+    for (int w = 0; w < WPT; w++) {
+        C[(globalCol + w * RTS) * M + globalRow] = acc[w];
+    }
 }
