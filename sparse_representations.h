@@ -352,9 +352,9 @@ protected:
 		return eig;
 	}
 
-	virtual void solve_cpu() {}
+	virtual void solve_cpu() = 0 {} 
 
-	virtual void solve_gpu() {}
+	virtual void solve_gpu() = 0 {} 
 };
 
 template <class T_type>
