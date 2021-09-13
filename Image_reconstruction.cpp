@@ -7,63 +7,6 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-void mat_mul_gpu(vector<vector<float>>& mat, vector<float>& vec, int n, int m)
-{
-	vector<float> res(m);
-	int t = 32;
-	int m1 = 32;
-	float sum = 0.0f;
-	
-
-	vector<vector<float>> mat_t(n, vector<float>(m));
-	mat_transpose(mat, mat_t, 16);
-
-	std::vector<cl::Platform> all_platforms;
-	cl::Platform::get(&all_platforms);
-	cl::Platform default_platform = all_platforms[0];
-	std::vector<cl::Device> all_devices;
-	default_platform.getDevices(CL_DEVICE_TYPE_GPU, &all_devices);
-	cl::Device default_device = all_devices[0];
-	cl::Context context(default_device);
-	std::ifstream src("gpu_kernels.cl");
-	std::string str((std::istreambuf_iterator<char>(src)), std::istreambuf_iterator<char>());
-	cl::Program::Sources sources;
-	sources.push_back({ str.c_str(),str.length() });
-	cl::Program program(context, sources);
-	program.build({ default_device });
-
-	vector<float> flat_mat(mat_t.size() * mat_t[0].size());
-
-
-	flatten_scalar(mat_t, flat_mat, 16);
-
-	cl::Buffer buffer_A(context, CL_MEM_READ_ONLY, sizeof(float) * flat_mat.size());
-	cl::Buffer buffer_vec(context, CL_MEM_READ_WRITE, sizeof(float) * vec.size());
-	cl::Buffer buffer_res(context, CL_MEM_READ_WRITE, sizeof(float) * res.size());
-
-	cl::CommandQueue queue(context, default_device);
-
-	cl::Kernel kernel_mat_vec_mul_gpu;
-	kernel_mat_vec_mul_gpu = cl::Kernel(program, "mat_vec_mul_gpu_sp");
-
-	queue.enqueueWriteBuffer(buffer_A, CL_TRUE, 0, sizeof(float) * flat_mat.size(), flat_mat.data());
-	queue.enqueueWriteBuffer(buffer_vec, CL_TRUE, 0, sizeof(float) * vec.size(), vec.data());
-	queue.enqueueWriteBuffer(buffer_res, CL_TRUE, 0, sizeof(float) * res.size(), res.data());
-
-	kernel_mat_vec_mul_gpu.setArg(0, buffer_A);
-	kernel_mat_vec_mul_gpu.setArg(1, buffer_vec);
-	kernel_mat_vec_mul_gpu.setArg(2, buffer_res);
-	kernel_mat_vec_mul_gpu.setArg(3, m1 * t * sizeof(float), NULL);
-	kernel_mat_vec_mul_gpu.setArg(4, m);
-	kernel_mat_vec_mul_gpu.setArg(5, n);
-	queue.enqueueNDRangeKernel(kernel_mat_vec_mul_gpu, cl::NullRange, cl::NDRange(m, t), cl::NDRange(m1, t));
-	queue.finish();
-	queue.enqueueReadBuffer(buffer_res, CL_TRUE, 0, sizeof(float) * res.size(), res.data());
-	queue.finish();
-
-	vec = res;
-}
-
 void recostruct(cv::Mat &img, cv::Mat& out, float p)
 {
 
@@ -91,7 +34,6 @@ void recostruct(cv::Mat &img, cv::Mat& out, float p)
 	generator.seed(std::chrono::system_clock::now().time_since_epoch().count());
 	static std::uniform_real_distribution<> dis(0, n-1);
 	vec_fill(x_map, 0.0f);
-	//mat_rand(Phi, T);
 	mat_fill(Phi, 0.0f, T);
 
 	cv::Mat floatImg;
@@ -126,11 +68,7 @@ void recostruct(cv::Mat &img, cv::Mat& out, float p)
 		vec_add_avx(x_map, Phi[i], 2);
 	}*/
 	mat_rand(Phi, T);
-	//mat_print(Phi);
 
-
-	//vec_print(x_map);
-	//vec_print(Phi[6]);
 	x_aux = x;
 
 	vector<float> res(m);
@@ -176,13 +114,8 @@ void recostruct(cv::Mat &img, cv::Mat& out, float p)
 	queue.enqueueReadBuffer(buffer_res, CL_TRUE, 0, sizeof(float) * res.size(), res.data());
 	queue.finish();
 	x_aux = res;
-
-	//mat_mul_gpu(Phi, x_aux, n, m);
-	//mat_vec_mul_avx(Phi, x_aux, T);
 	
 	y = x_aux;
-	//vec_print(y);
-	//vec_print(y);
 
 	for (int i = 0; i < n; i++)
 	{
@@ -215,8 +148,6 @@ void recostruct(cv::Mat &img, cv::Mat& out, float p)
 	vec_fill(x1, 0.0f);
 	vec_fill(ek, 0.0f);
 	vec_fill(psi, 0.0f);
-
-	//vec_print(s1);
 
 	for (int i = 0; i < n; i++)
 	{
@@ -253,10 +184,6 @@ void recostruct(cv::Mat &img, cv::Mat& out, float p)
 
 
 	out = dst;
-
-	//imshow("1", org);
-	//imshow("2", out);
-	//k = cv::waitKey(0);
 }
 
 int main()
@@ -284,21 +211,13 @@ int main()
 	cv::Mat reconstructed_img;
 	cv::Mat original_img;
 	
-	//cv::extractChannel(img, channel_1, 0);
-	//cv::extractChannel(img, channel_2, 1);
-	//cv::extractChannel(img, channel_3, 2);
 
 	high_resolution_clock::time_point t1 = high_resolution_clock::now();
 	recostruct(img, out_1, p);
-	//recostruct(channel_2, out_2, p);
-	//recostruct(channel_3, out_3, p);
 	high_resolution_clock::time_point t2 = high_resolution_clock::now();
 	float solve_time = duration_cast<milliseconds>(t2 - t1).count();
 	cout << solve_time << endl;
 
-	//vector<cv::Mat> channels = { out_1,out_2,out_3 };
-
-	//merge(channels, reconstructed_img);
 	cv::imwrite("C:/Users/iorda/Desktop/lenna_n_1.bmp", out_1);
 	imshow("Display window", out_1);
 	k = cv::waitKey(0);
