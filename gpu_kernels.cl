@@ -26,140 +26,140 @@ void kernel norm_sp(global float* x, global float* norm, int n)
     norm[0] = sqrt(norm[0]);
 }
 
-void kernel vec_scalar_gpu_sp(global float * x, float a)
+void kernel vec_scalar_gpu_sp(global float* x, float a)
 {
-	x[get_global_id(0)]*=a;
+    x[get_global_id(0)] *= a;
 }
 
-void kernel shrink_gpu_sp(global float * x, float threshold)
+void kernel shrink_gpu_sp(global float* x, float threshold)
 {
 
     const int id = get_global_id(0);
-    
+
     local float aux;
     aux = sign(x[id]) * x[id] - threshold;
-    
-	x[id] = sign(x[id]) * fmax(aux, 0.0f);
-	
-	if((sign(x[id]) * x[id]) < 1.175e-38)
-	   x[id] = 0.0f;
-	
+
+    x[id] = sign(x[id]) * fmax(aux, 0.0f);
+
+    if ((sign(x[id]) * x[id]) < 1.175e-38)
+        x[id] = 0.0f;
+
 }
 
-void kernel mat_vec_mul_gpu_sp(global const float * mat, global const float * vec, global float * res, local float * aux, int m,int n)
+void kernel mat_vec_mul_gpu_sp(global const float* mat, global const float* vec, global float* res, local float* aux, int m, int n)
 {
-  
-  float sum = 0.0f;
-	
-  //	computing a partial dot product
-  for (int k=get_global_id(1);k<n;k+=get_global_size(1))
+
+    float sum = 0.0f;
+
+    //	computing a partial dot product
+    for (int k = get_global_id(1); k < n; k += get_global_size(1))
     {
-      sum += mat[get_global_id(0)+m*k] * vec[k];
+        sum += mat[get_global_id(0) + m * k] * vec[k];
     }
 
 
-  const int rows = get_local_size(0);
-  int cols = get_local_size(1); 
-  const int i = get_local_id(0);
-  const int j = get_local_id(1);
-  aux[i+rows*j] = sum;
-  
-  //	synchronizing all threads within the same workgroup
-  barrier(CLK_LOCAL_MEM_FENCE); 
+    const int rows = get_local_size(0);
+    int cols = get_local_size(1);
+    const int i = get_local_id(0);
+    const int j = get_local_id(1);
+    aux[i + rows * j] = sum;
 
-  //	performing the reduction to sum up all the partial dot products
-  while ( cols > 1 )
+    //	synchronizing all threads within the same workgroup
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    //	performing the reduction to sum up all the partial dot products
+    while (cols > 1)
     {
-      cols = cols/2;
-      if (j < cols) 
-          aux[i+rows*j] += aux[i+rows*(j+cols)];
-      barrier(CLK_LOCAL_MEM_FENCE); 
+        cols = cols / 2;
+        if (j < cols)
+            aux[i + rows * j] += aux[i + rows * (j + cols)];
+        barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-  // 	writing the final answer
-  if ( j == 0 ) 
-     res[get_global_id(0)] = aux[i];
-  
+    // 	writing the final answer
+    if (j == 0)
+        res[get_global_id(0)] = aux[i];
+
 }
 
 void kernel vec_sub_gpu_sp(global float* vec1, global const float* vec2)
 {
     const int id = get_global_id(0);
-	vec1[id] = vec1[id] - vec2[id];
+    vec1[id] = vec1[id] - vec2[id];
 }
 
 void kernel vec_add_gpu_sp(global float* vec1, global const float* vec2)
 {
     const int id = get_global_id(0);
-	vec1[id] = vec1[id] + vec2[id];
+    vec1[id] = vec1[id] + vec2[id];
 }
 
-void kernel vec_scalar_gpu_dp(global double * x, double a)
+void kernel vec_scalar_gpu_dp(global double* x, double a)
 {
-	x[get_global_id(0)]*=a;
+    x[get_global_id(0)] *= a;
 }
 
-void kernel shrink_gpu_dp(global double * x, double threshold)
+void kernel shrink_gpu_dp(global double* x, double threshold)
 {
 
     const int id = get_global_id(0);
-    
+
     local double aux;
     aux = sign(x[id]) * x[id] - threshold;
-    
-	x[id] = sign(x[id]) * fmax(aux, (double)(0.0f));
-	
-	if((sign(x[id]) * x[id]) < 1.175e-38)
-	   x[id] = 0.0f;
-	
+
+    x[id] = sign(x[id]) * fmax(aux, (double)(0.0f));
+
+    if ((sign(x[id]) * x[id]) < 1.175e-38)
+        x[id] = 0.0f;
+
 }
 
-void kernel mat_vec_mul_gpu_dp(global const double * mat, global const double * vec, global double * res, local double * aux, int m,int n)
+void kernel mat_vec_mul_gpu_dp(global const double* mat, global const double* vec, global double* res, local double* aux, int m, int n)
 {
-  
-  double sum = 0.0f;
-	
-  //	computing a partial dot product
-  for (int k=get_global_id(1);k<n;k+=get_global_size(1))
+
+    double sum = 0.0f;
+
+    //	computing a partial dot product
+    for (int k = get_global_id(1); k < n; k += get_global_size(1))
     {
-      sum += mat[get_global_id(0)+m*k] * vec[k];
+        sum += mat[get_global_id(0) + m * k] * vec[k];
     }
 
 
-  const int rows = get_local_size(0);
-  int cols = get_local_size(1); 
-  const int i = get_local_id(0);
-  const int j = get_local_id(1);
-  aux[i+rows*j] = sum;
-  
-  //	synchronizing all threads within the same workgroup
-  barrier(CLK_LOCAL_MEM_FENCE); 
+    const int rows = get_local_size(0);
+    int cols = get_local_size(1);
+    const int i = get_local_id(0);
+    const int j = get_local_id(1);
+    aux[i + rows * j] = sum;
 
-  //	performing the reduction to sum up all the partial dot products
-  while ( cols > 1 )
+    //	synchronizing all threads within the same workgroup
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    //	performing the reduction to sum up all the partial dot products
+    while (cols > 1)
     {
-      cols = cols/2;
-      if (j < cols) 
-          aux[i+rows*j] += aux[i+rows*(j+cols)];
-      barrier(CLK_LOCAL_MEM_FENCE); 
+        cols = cols / 2;
+        if (j < cols)
+            aux[i + rows * j] += aux[i + rows * (j + cols)];
+        barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-  // 	writing the final answer
-  if ( j == 0 ) 
-     res[get_global_id(0)] = aux[i];
-  
+    // 	writing the final answer
+    if (j == 0)
+        res[get_global_id(0)] = aux[i];
+
 }
 
 void kernel vec_sub_gpu_dp(global double* vec1, global const double* vec2)
 {
     const int id = get_global_id(0);
-	vec1[id] = vec1[id] - vec2[id];
+    vec1[id] = vec1[id] - vec2[id];
 }
 
 void kernel vec_add_gpu_dp(global double* vec1, global const double* vec2)
 {
     const int id = get_global_id(0);
-	vec1[id] = vec1[id] + vec2[id];
+    vec1[id] = vec1[id] + vec2[id];
 }
 
 // Increased the amount of work-per-thread by a factor WPT
